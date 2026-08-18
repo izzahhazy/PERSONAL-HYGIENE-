@@ -167,15 +167,14 @@
   .ppage table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:9px;}
   .ppage th,.ppage td{border:0.75px solid #555;padding:2px 3px;text-align:center;overflow:hidden;word-wrap:break-word;}
   .ppage th{background:#f0f0f0;font-size:8px;}
-  .ppage col.c-no{width:3%;}
-  .ppage col.c-name{width:12%;}
-  .ppage col.c-item{width:6%;}
-  .ppage col.c-remarks{width:9%;}
-  .ppage col.c-sig{width:28%;}
+  .ppage col.c-no{width:4%;}
+  .ppage col.c-name{width:16%;}
+  .ppage col.c-item{width:7%;}
+  .ppage col.c-sig{width:24%;}
   .ppage td.name{text-align:left;}
-  .ppage td.remarks{text-align:left;font-size:8px;}
   .ppage img.sig{max-height:22px;max-width:95px;}
   .ppage-foot{font-size:8.5px;margin-top:6px;line-height:1.4;color:#333;}
+  .ppage-notes{font-size:8.5px;margin-top:5px;line-height:1.4;color:#333;border-top:0.5px solid #999;padding-top:4px;}
   .ppage-sign{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px;font-size:10px;}
   .ppage-sign div div{margin-bottom:9px;}
 </style>
@@ -644,7 +643,7 @@ function buildPrintPage(entry, pageNum, totalPages, includeHeader){
   const rowsHtml = entry.rows.map(r=>{
     const cells = ITEMS.map(it=>`<td>${r[it.k]?'✓':''}</td>`).join('');
     const sig = r.signature ? `<img class="sig" src="${r.signature}">` : '';
-    return `<tr><td>${r.no}</td><td class="name">${escapeHtml(r.name)}</td>${cells}<td class="remarks">${escapeHtml(r.remarks)}</td><td>${sig}</td></tr>`;
+    return `<tr><td>${r.no}</td><td class="name">${escapeHtml(r.name)}</td>${cells}<td>${sig}</td></tr>`;
   }).join('');
   const headerHtml = includeHeader ? `
     <div class="ppage-head">
@@ -668,7 +667,7 @@ function buildPrintPage(entry, pageNum, totalPages, includeHeader){
       <colgroup>
         <col class="c-no"><col class="c-name">
         ${ITEMS.map(()=>'<col class="c-item">').join('')}
-        <col class="c-remarks"><col class="c-sig">
+        <col class="c-sig">
       </colgroup>
       <thead>
         <tr><th rowspan="2">No</th><th rowspan="2">Name</th><th colspan="8">Remarks</th><th rowspan="2">Signature<br>of staff</th></tr>
@@ -684,6 +683,7 @@ function buildPrintPage(entry, pageNum, totalPages, includeHeader){
       <div><div>Checked by: ${entry.checkedSig?'<img class="sig" src="'+entry.checkedSig+'">':''}</div><div>Name: ${escapeHtml(entry.checkedName)}</div><div>Position: ${escapeHtml(entry.checkedPos)}</div></div>
       <div><div>Verified by: ${entry.verifiedSig?'<img class="sig" src="'+entry.verifiedSig+'">':''}</div><div>Name: ${escapeHtml(entry.verifiedName)}</div><div>Position: ${escapeHtml(entry.verifiedPos)}</div></div>
     </div>
+    ${entry.rows.some(r=>r.remarks) ? `<div class="ppage-notes"><b>Notes (not part of original form):</b> ${entry.rows.filter(r=>r.remarks).map(r=>escapeHtml(r.name)+' — '+escapeHtml(r.remarks)).join(' · ')}</div>` : ''}
   </div>`;
 }
 
@@ -735,9 +735,18 @@ function showVerifyLink(date){
   const box = el('linkBox');
   box.style.display = 'block';
   box.innerHTML = 'Send this link to QA so they can verify remotely:<br><b>' + link + '</b>';
-  if(navigator.clipboard){ navigator.clipboard.writeText(link).catch(()=>{}); }
+  let copied = false;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link);
+      copied = true;
+    }
+  }catch(e){}
   if(location.protocol==='file:'){
-    box.innerHTML += '<br><br>⚠ This file is open locally (file://), so this link only works on this same computer. Host the file online (see Google Sheet tab) so QA on another device can open it.';
+    box.innerHTML += '<br><br>⚠ This file is open locally (file://), so this link only works on this same computer. Host the file online so QA on another device can open it.';
+    alert('QA verification link (this only works on this same computer while opened locally):\n\n' + link);
+  } else {
+    alert((copied ? 'Link copied to clipboard!\n\n' : 'Copy this link manually:\n\n') + link + '\n\nSend this to QA.');
   }
 }
 el('copyVerifyLinkBtn').addEventListener('click', ()=> showVerifyLink(state.date));
