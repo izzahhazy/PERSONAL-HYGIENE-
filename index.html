@@ -116,6 +116,7 @@
   .signoff{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .signoff-group label{display:block;font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em;}
   .signoff-group input{width:100%;font-family:inherit;font-size:13.5px;padding:7px 9px;border:1px solid var(--line-strong);border-radius:6px;margin-bottom:8px;}
+  .signoff-group input.sig-input{font-family:'Dancing Script',cursive;font-weight:600;color:var(--green-800);}
   .signoff-title{font-weight:700;font-size:13px;margin-bottom:8px;}
 
   .actionbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center;}
@@ -251,7 +252,7 @@
           <label>Position</label>
           <input type="text" id="checkedPos" placeholder="Position">
           <label>Signature (short name/initials)</label>
-          <input type="text" id="checkedSigInput" class="sig-input" style="width:100%;font-size:22px;" placeholder="e.g. J.Doe">
+          <input type="text" id="checkedSigInput" class="sig-input" style="width:100%;font-size:24px;" placeholder="e.g. J.Doe">
         </div>
         <div class="signoff-group">
           <div class="signoff-title">Verified by</div>
@@ -260,7 +261,7 @@
           <label>Position</label>
           <input type="text" id="verifiedPos" placeholder="Position">
           <label>Signature (short name/initials)</label>
-          <input type="text" id="verifiedSigInput" class="sig-input" style="width:100%;font-size:22px;" placeholder="e.g. J.Doe">
+          <input type="text" id="verifiedSigInput" class="sig-input" style="width:100%;font-size:24px;" placeholder="e.g. J.Doe">
         </div>
       </div>
     </div>
@@ -523,19 +524,40 @@ el('staffList').addEventListener('click', e=>{
     return;
   }
 });
+function toInitials(v){
+  const parts = (v||'').trim().split(/\s+/).filter(Boolean);
+  if(parts.length===0) return '';
+  if(parts.length===1) return parts[0]; // single word: keep as-is (already short)
+  return parts.map(w=>w[0].toUpperCase()).join('');
+}
 el('staffList').addEventListener('input', e=>{
   const t = e.target;
   const idx = +t.dataset.idx;
   if(t.dataset.role==='name'){ state.rows[idx].name = t.value; dirty=true; setStatus('Unsaved','unsaved'); }
   if(t.dataset.role==='remarks'){ state.rows[idx].remarks = t.value; dirty=true; setStatus('Unsaved','unsaved'); }
-  if(t.dataset.role==='signature'){ state.rows[idx].signature = t.value; dirty=true; setStatus('Unsaved','unsaved'); }
+  if(t.dataset.role==='signature'){
+    const initials = toInitials(t.value);
+    state.rows[idx].signature = initials;
+    if(t.value !== initials) t.value = initials;
+    dirty=true; setStatus('Unsaved','unsaved');
+  }
 });
 
 ['checkedName','checkedPos','verifiedName','verifiedPos'].forEach(id=>{
   el(id).addEventListener('input', e=>{ state[id]=e.target.value; dirty=true; setStatus('Unsaved','unsaved'); });
 });
-el('checkedSigInput').addEventListener('input', e=>{ state.checkedSig=e.target.value; dirty=true; setStatus('Unsaved','unsaved'); });
-el('verifiedSigInput').addEventListener('input', e=>{ state.verifiedSig=e.target.value; dirty=true; setStatus('Unsaved','unsaved'); });
+el('checkedSigInput').addEventListener('input', e=>{
+  const initials = toInitials(e.target.value);
+  state.checkedSig = initials;
+  if(e.target.value !== initials) e.target.value = initials;
+  dirty=true; setStatus('Unsaved','unsaved');
+});
+el('verifiedSigInput').addEventListener('input', e=>{
+  const initials = toInitials(e.target.value);
+  state.verifiedSig = initials;
+  if(e.target.value !== initials) e.target.value = initials;
+  dirty=true; setStatus('Unsaved','unsaved');
+});
 
 
 // ---- Tick all / untick all ----
