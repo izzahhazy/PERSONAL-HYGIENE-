@@ -58,7 +58,8 @@
   .masthead-meta span:last-child{font-family:'IBM Plex Mono',monospace;font-weight:600;}
 
   .verifybanner{
-    display:none;background:var(--green-800);color:#fff;padding:12px 14px;border-radius:8px;
+    display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+    background:var(--green-800);color:#fff;padding:12px 14px;border-radius:8px;
     margin-bottom:14px;font-size:13.5px;font-weight:600;
   }
 
@@ -203,7 +204,8 @@
   </div>
 
   <div class="verifybanner" id="verifyBanner">
-    QA verification — reviewing record for <span id="verifyDateLabel"></span>. Checklist below is read-only; fill in "Verified by" and submit.
+    <span>QA verification — reviewing record for <span id="verifyDateLabel"></span>. Checklist below is read-only; fill in "Verified by" and submit.</span>
+    <button class="btn btn-ghost" id="exitVerifyBtn" style="margin-left:12px;color:#fff;border-color:rgba(255,255,255,.5);">← Back to full form</button>
   </div>
 
   <div class="tabs">
@@ -612,11 +614,12 @@ async function loadMonthEntries(){
     row.className = 'entryrow';
     row.innerHTML = `<span class="d mono">${en.date}</span><span class="w">Week ${en.week}</span>
       <span class="c">${checkedCount}/${en.rows.length} staff recorded${en.verifiedName?' • verified':''}</span>
-      <span class="btns"><button class="btn" data-act="open">Open</button><button class="btn" data-act="link">QA link</button><button class="btn btn-danger" data-act="delete">Delete</button></span>`;
+      <span class="btns"><button class="btn" data-act="open">Open</button><button class="btn btn-primary" data-act="verify">Verify</button><button class="btn" data-act="link">QA link</button><button class="btn btn-danger" data-act="delete">Delete</button></span>`;
     row.querySelector('[data-act="open"]').addEventListener('click', ()=>{
       document.querySelector('[data-panel="fill"]').click();
       goToDate(en.date);
     });
+    row.querySelector('[data-act="verify"]').addEventListener('click', ()=> enterVerifyMode(en.date));
     row.querySelector('[data-act="link"]').addEventListener('click', ()=> showVerifyLink(en.date));
     row.querySelector('[data-act="delete"]').addEventListener('click', async ()=>{
       if(!confirm('Delete the record for ' + en.date + '? This cannot be undone.')) return;
@@ -761,13 +764,23 @@ el('submitVerifyBtn').addEventListener('click', async ()=>{
   }
 });
 
+// ---- Verify mode (shared by URL-param entry and in-app "Verify" button) ----
+function enterVerifyMode(date){
+  document.querySelector('[data-panel="fill"]').click();
+  document.body.classList.add('verify-mode');
+  el('verifyBanner').style.display = 'flex';
+  el('verifyDateLabel').textContent = date;
+  goToDate(date);
+}
+el('exitVerifyBtn').addEventListener('click', ()=>{
+  document.body.classList.remove('verify-mode');
+  el('verifyBanner').style.display = 'none';
+});
+
 // ---- Init ----
 el('reportMonth').value = state.month;
 if(isVerifyMode && verifyDateParam){
-  document.body.classList.add('verify-mode');
-  el('verifyBanner').style.display = 'block';
-  el('verifyDateLabel').textContent = verifyDateParam;
-  goToDate(verifyDateParam);
+  enterVerifyMode(verifyDateParam);
 } else {
   goToDate(state.date);
 }
