@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Personal Hygiene Checklist — HEXA FOOD SDN BHD (HEXA 3)</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Dancing+Script:wght@600;700&display=swap');
 
   :root{
     --ink:#1F2A24;
@@ -100,15 +100,14 @@
   .chip.on .lab{color:var(--green-800);}
   .card-bottom{display:flex;gap:8px;margin-top:10px;}
   .remarks-input{flex:1;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--paper);}
-  .sig-btn{flex-shrink:0;width:92px;height:34px;border:1px dashed var(--line-strong);border-radius:6px;background:var(--paper);cursor:pointer;font-size:11px;color:var(--ink-soft);font-weight:600;display:flex;align-items:center;justify-content:center;padding:2px;}
-  .sig-btn img{max-width:100%;max-height:100%;}
+  .sig-input{width:92px;flex-shrink:0;font-family:'Dancing Script',cursive;font-size:19px;font-weight:600;color:var(--green-800);padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--paper);}
 
   body.verify-mode .tabs,
   body.verify-mode #fillControls,
   body.verify-mode .fill-only,
   body.verify-mode #checkedByGroup{display:none !important;}
   body.verify-mode .items, body.verify-mode .card-name, body.verify-mode .remarks-input,
-  body.verify-mode [data-role="sig"]{pointer-events:none;opacity:.65;}
+  body.verify-mode [data-role="signature"]{pointer-events:none;opacity:.65;}
   .verify-only{display:none;}
   body.verify-mode .verify-only{display:inline-block;}
 
@@ -142,7 +141,6 @@
   .modal-overlay.show{display:flex;}
   .modal{background:#fff;border-radius:12px;padding:16px;width:100%;max-width:360px;}
   .modal h3{margin:0 0 10px;font-size:14.5px;}
-  #sigCanvas{width:100%;height:150px;border:1px solid var(--line-strong);border-radius:8px;background:#fdfdfb;touch-action:none;}
   .modal-actions{display:flex;gap:8px;margin-top:12px;}
 
   .linkbox{display:none;margin-top:10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;word-break:break-all;}
@@ -172,7 +170,10 @@
   .ppage col.c-item{width:7%;}
   .ppage col.c-sig{width:24%;}
   .ppage td.name{text-align:left;}
-  .ppage img.sig{max-height:22px;max-width:95px;}
+  .ppage td.sig-cell{font-family:'Dancing Script',cursive;font-size:15px;font-weight:700;color:#1B4A36;}
+  .ppage img.sig-img{max-height:20px;max-width:90px;}
+  .ppage-sign img.sig-img{max-height:26px;max-width:130px;}
+  .ppage-sign b{font-family:'Dancing Script',cursive;font-size:20px;font-weight:700;color:#1B4A36;}
   .ppage-foot{font-size:8.5px;margin-top:6px;line-height:1.4;color:#333;}
   .ppage-notes{font-size:8.5px;margin-top:5px;line-height:1.4;color:#333;border-top:0.5px solid #999;padding-top:4px;}
   .ppage-sign{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px;font-size:10px;}
@@ -249,7 +250,8 @@
           <input type="text" id="checkedName" placeholder="Name">
           <label>Position</label>
           <input type="text" id="checkedPos" placeholder="Position">
-          <button class="sig-btn" id="checkedSigBtn" style="width:100%;height:44px;">Tap sign</button>
+          <label>Signature (short name/initials)</label>
+          <input type="text" id="checkedSigInput" class="sig-input" style="width:100%;font-size:24px;" placeholder="e.g. J.Doe">
         </div>
         <div class="signoff-group">
           <div class="signoff-title">Verified by</div>
@@ -257,7 +259,8 @@
           <input type="text" id="verifiedName" placeholder="Name">
           <label>Position</label>
           <input type="text" id="verifiedPos" placeholder="Position">
-          <button class="sig-btn" id="verifiedSigBtn" style="width:100%;height:44px;">Tap sign</button>
+          <label>Signature (short name/initials)</label>
+          <input type="text" id="verifiedSigInput" class="sig-input" style="width:100%;font-size:24px;" placeholder="e.g. J.Doe">
         </div>
       </div>
     </div>
@@ -268,6 +271,7 @@
       <button class="btn btn-ghost fill-only" id="clearBtn">Untick all</button>
       <button class="btn fill-only" id="printDayBtn">Print today</button>
       <button class="btn fill-only" id="copyVerifyLinkBtn">Copy QA verification link</button>
+      <button class="btn btn-danger fill-only" id="deleteCurrentBtn">Delete this record</button>
       <button class="btn btn-primary verify-only" id="submitVerifyBtn">Submit verification</button>
     </div>
     <div class="linkbox" id="linkBox"></div>
@@ -309,18 +313,6 @@
 
 </div>
 
-<div class="modal-overlay" id="sigModal">
-  <div class="modal">
-    <h3 id="sigModalName">Signature</h3>
-    <canvas id="sigCanvas"></canvas>
-    <div class="modal-actions">
-      <button class="btn" id="sigClearBtn">Clear</button>
-      <button class="btn btn-ghost" id="sigCancelBtn">Cancel</button>
-      <button class="btn btn-primary" id="sigSaveBtn" style="margin-left:auto;">Save signature</button>
-    </div>
-  </div>
-</div>
-
 <div id="printRoot"></div>
 
 <script>
@@ -359,8 +351,6 @@ let state = {
   checkedName:'', checkedPos:'', verifiedName:'', verifiedPos:'', checkedSig:'', verifiedSig:''
 };
 let dirty = false;
-let sigTargetIndex = null;
-let sigTargetType = 'row';
 const memStore = {};
 
 const el = id => document.getElementById(id);
@@ -440,6 +430,21 @@ async function apiVerify(date, verifiedName, verifiedPos, verifiedSig){
   }catch(e){ console.error('[hygiene] VERIFY: fetch failed:', e); return {ok:false, reason:'fetch-error', raw:String(e)}; }
 }
 
+async function apiDeleteEntry(date, month){
+  if(!apiUrl) return {ok:false, reason:'no-url'};
+  try{
+    const res = await fetch(apiUrl, {method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'delete', date, month})});
+    const text = await res.text();
+    let j; try{ j = JSON.parse(text); }catch(e){
+      console.error('[hygiene] DELETE: non-JSON response:', text);
+      return {ok:false, reason:'bad-response', raw:text};
+    }
+    if(j.ok===false){ console.error('[hygiene] DELETE: script error:', j.error); return {ok:false, reason:'script-error', raw:j.error}; }
+    return {ok:true, removed:j.removed};
+  }catch(e){ console.error('[hygiene] DELETE: fetch failed:', e); return {ok:false, reason:'fetch-error', raw:String(e)}; }
+}
+
 // ---------------- Rendering ----------------
 function renderStaffList(){
   const list = el('staffList');
@@ -462,7 +467,7 @@ function renderStaffList(){
       </div>
       <div class="card-bottom">
         <input class="remarks-input" placeholder="Remarks" value="${row.remarks.replace(/"/g,'&quot;')}" data-role="remarks" data-idx="${idx}">
-        <button class="sig-btn" data-role="sig" data-idx="${idx}">${row.signature?'<img src="'+row.signature+'">':'Tap sign'}</button>
+        <input class="sig-input" placeholder="Initial" value="${(row.signature||'').replace(/"/g,'&quot;')}" data-role="signature" data-idx="${idx}">
       </div>
     `;
     list.appendChild(card);
@@ -477,8 +482,8 @@ function loadEntry(){
   el('checkedPos').value = state.checkedPos;
   el('verifiedName').value = state.verifiedName;
   el('verifiedPos').value = state.verifiedPos;
-  el('checkedSigBtn').innerHTML = state.checkedSig ? '<img src="'+state.checkedSig+'">' : 'Tap sign';
-  el('verifiedSigBtn').innerHTML = state.verifiedSig ? '<img src="'+state.verifiedSig+'">' : 'Tap sign';
+  el('checkedSigInput').value = state.checkedSig || '';
+  el('verifiedSigInput').value = state.verifiedSig || '';
   renderStaffList();
 }
 
@@ -517,19 +522,42 @@ el('staffList').addEventListener('click', e=>{
     renderStaffList();
     return;
   }
-  const sigBtn = e.target.closest('[data-role="sig"]');
-  if(sigBtn){ openSigModal(+sigBtn.dataset.idx, 'row'); }
 });
+function toInitials(v){
+  const parts = (v||'').trim().split(/\s+/).filter(Boolean);
+  if(parts.length===0) return '';
+  if(parts.length===1) return parts[0]; // single word: keep as-is (already short)
+  return parts.map(w=>w[0].toUpperCase()).join('');
+}
 el('staffList').addEventListener('input', e=>{
   const t = e.target;
   const idx = +t.dataset.idx;
   if(t.dataset.role==='name'){ state.rows[idx].name = t.value; dirty=true; setStatus('Unsaved','unsaved'); }
   if(t.dataset.role==='remarks'){ state.rows[idx].remarks = t.value; dirty=true; setStatus('Unsaved','unsaved'); }
+  if(t.dataset.role==='signature'){
+    const initials = toInitials(t.value);
+    state.rows[idx].signature = initials;
+    if(t.value !== initials) t.value = initials;
+    dirty=true; setStatus('Unsaved','unsaved');
+  }
 });
 
 ['checkedName','checkedPos','verifiedName','verifiedPos'].forEach(id=>{
   el(id).addEventListener('input', e=>{ state[id]=e.target.value; dirty=true; setStatus('Unsaved','unsaved'); });
 });
+el('checkedSigInput').addEventListener('input', e=>{
+  const initials = toInitials(e.target.value);
+  state.checkedSig = initials;
+  if(e.target.value !== initials) e.target.value = initials;
+  dirty=true; setStatus('Unsaved','unsaved');
+});
+el('verifiedSigInput').addEventListener('input', e=>{
+  const initials = toInitials(e.target.value);
+  state.verifiedSig = initials;
+  if(e.target.value !== initials) e.target.value = initials;
+  dirty=true; setStatus('Unsaved','unsaved');
+});
+
 
 // ---- Tick all / untick all ----
 el('tickAllBtn').addEventListener('click', ()=>{
@@ -542,49 +570,6 @@ el('clearBtn').addEventListener('click', ()=>{
   dirty=true; setStatus('Unsaved','unsaved');
   renderStaffList();
 });
-
-// ---- Signature modal (shared by staff rows + checked/verified) ----
-const canvas = el('sigCanvas');
-let ctx, drawing=false;
-function setupCanvas(){
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * 2; canvas.height = rect.height * 2;
-  ctx = canvas.getContext('2d');
-  ctx.scale(2,2);
-  ctx.lineWidth = 2; ctx.lineCap='round'; ctx.strokeStyle='#1F2A24';
-}
-function posFromEvent(e){
-  const rect = canvas.getBoundingClientRect();
-  const p = e.touches ? e.touches[0] : e;
-  return {x: p.clientX-rect.left, y: p.clientY-rect.top};
-}
-canvas.addEventListener('pointerdown', e=>{ drawing=true; const p=posFromEvent(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
-canvas.addEventListener('pointermove', e=>{ if(!drawing) return; const p=posFromEvent(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
-window.addEventListener('pointerup', ()=> drawing=false);
-
-function openSigModal(idx, type){
-  sigTargetIndex = idx;
-  sigTargetType = type || 'row';
-  const label = sigTargetType==='checked' ? 'Checked by'
-    : sigTargetType==='verified' ? 'Verified by'
-    : (state.rows[idx].name || 'Staff #'+(idx+1));
-  el('sigModalName').textContent = 'Signature — ' + label;
-  el('sigModal').classList.add('show');
-  setTimeout(()=>{ setupCanvas(); }, 20);
-}
-el('sigCancelBtn').addEventListener('click', ()=> el('sigModal').classList.remove('show'));
-el('sigClearBtn').addEventListener('click', ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); });
-el('sigSaveBtn').addEventListener('click', ()=>{
-  const dataUrl = canvas.toDataURL('image/png');
-  if(sigTargetType==='row') state.rows[sigTargetIndex].signature = dataUrl;
-  else if(sigTargetType==='checked') state.checkedSig = dataUrl;
-  else if(sigTargetType==='verified') state.verifiedSig = dataUrl;
-  dirty = true; setStatus('Unsaved','unsaved');
-  el('sigModal').classList.remove('show');
-  loadEntry();
-});
-el('checkedSigBtn').addEventListener('click', ()=> openSigModal(null,'checked'));
-el('verifiedSigBtn').addEventListener('click', ()=> openSigModal(null,'verified'));
 
 // ---- Save ----
 async function saveCurrent(){
@@ -626,24 +611,31 @@ async function loadMonthEntries(){
     row.className = 'entryrow';
     row.innerHTML = `<span class="d mono">${en.date}</span><span class="w">Week ${en.week}</span>
       <span class="c">${checkedCount}/${en.rows.length} staff recorded${en.verifiedName?' • verified':''}</span>
-      <span class="btns"><button class="btn" data-act="open">Open</button><button class="btn" data-act="link">QA link</button></span>`;
+      <span class="btns"><button class="btn" data-act="open">Open</button><button class="btn" data-act="link">QA link</button><button class="btn btn-danger" data-act="delete">Delete</button></span>`;
     row.querySelector('[data-act="open"]').addEventListener('click', ()=>{
       document.querySelector('[data-panel="fill"]').click();
       goToDate(en.date);
     });
     row.querySelector('[data-act="link"]').addEventListener('click', ()=> showVerifyLink(en.date));
+    row.querySelector('[data-act="delete"]').addEventListener('click', async ()=>{
+      if(!confirm('Delete the record for ' + en.date + '? This cannot be undone.')) return;
+      const res = await apiDeleteEntry(en.date, en.month);
+      if(res.ok){ row.remove(); }
+      else alert('Could not delete — check Console (F12) or the Google Sheet connection.');
+    });
     listEl.appendChild(row);
   });
 }
 
 // ---- Print ----
 function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function sigOrText(v){ if(!v) return ''; return v.startsWith('data:image') ? `<img class="sig-img" src="${v}">` : `<b>${escapeHtml(v)}</b>`; }
 
 function buildPrintPage(entry, pageNum, totalPages, includeHeader){
   const rowsHtml = entry.rows.map(r=>{
     const cells = ITEMS.map(it=>`<td>${r[it.k]?'✓':''}</td>`).join('');
-    const sig = r.signature ? `<img class="sig" src="${r.signature}">` : '';
-    return `<tr><td>${r.no}</td><td class="name">${escapeHtml(r.name)}</td>${cells}<td>${sig}</td></tr>`;
+    const sig = r.signature ? (r.signature.startsWith('data:image') ? `<img class="sig-img" src="${r.signature}">` : escapeHtml(r.signature)) : '';
+    return `<tr><td>${r.no}</td><td class="name">${escapeHtml(r.name)}</td>${cells}<td class="sig-cell">${sig}</td></tr>`;
   }).join('');
   const headerHtml = includeHeader ? `
     <div class="ppage-head">
@@ -680,8 +672,8 @@ function buildPrintPage(entry, pageNum, totalPages, includeHeader){
       • Others refer to accessories (ring, bracelet).
     </div>
     <div class="ppage-sign">
-      <div><div>Checked by: ${entry.checkedSig?'<img class="sig" src="'+entry.checkedSig+'">':''}</div><div>Name: ${escapeHtml(entry.checkedName)}</div><div>Position: ${escapeHtml(entry.checkedPos)}</div></div>
-      <div><div>Verified by: ${entry.verifiedSig?'<img class="sig" src="'+entry.verifiedSig+'">':''}</div><div>Name: ${escapeHtml(entry.verifiedName)}</div><div>Position: ${escapeHtml(entry.verifiedPos)}</div></div>
+      <div><div>Checked by: ${sigOrText(entry.checkedSig)}</div><div>Name: ${escapeHtml(entry.checkedName)}</div><div>Position: ${escapeHtml(entry.checkedPos)}</div></div>
+      <div><div>Verified by: ${sigOrText(entry.verifiedSig)}</div><div>Name: ${escapeHtml(entry.verifiedName)}</div><div>Position: ${escapeHtml(entry.verifiedPos)}</div></div>
     </div>
     ${entry.rows.some(r=>r.remarks) ? `<div class="ppage-notes"><b>Notes (not part of original form):</b> ${entry.rows.filter(r=>r.remarks).map(r=>escapeHtml(r.name)+' — '+escapeHtml(r.remarks)).join(' · ')}</div>` : ''}
   </div>`;
@@ -750,6 +742,12 @@ function showVerifyLink(date){
   }
 }
 el('copyVerifyLinkBtn').addEventListener('click', ()=> showVerifyLink(state.date));
+el('deleteCurrentBtn').addEventListener('click', async ()=>{
+  if(!confirm('Delete the record for ' + state.date + '? This cannot be undone.')) return;
+  const res = await apiDeleteEntry(state.date, state.month);
+  if(res.ok){ delete memStore[state.date]; goToDate(state.date); alert('Record deleted.'); }
+  else alert('Could not delete — check Console (F12) or the Google Sheet connection.');
+});
 
 // ---- Verify-mode submit ----
 el('submitVerifyBtn').addEventListener('click', async ()=>{
