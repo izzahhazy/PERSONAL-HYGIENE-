@@ -319,13 +319,13 @@
 <div id="printRoot"></div>
 
 <script>
-const STAFF = [
+let STAFF = [
   "Muhammad Hafizuddin","Ina","Emy Juliana","Norlela","Iman","Faridah","Wardiana",
   "Mintu Md","Mohamad Sahadat","Amirul Rashid","Muhammad Nor Rasidi","Nur Farahani",
   "Norina","Aslina","Farhana","Irfan","Muhammad Aliff","Norfarina","Lily Sheba",
   "Nor Amirah Maisarah","Rafeah","Zuraini","Aliff Umair","Suganthi","Faezah (PT)",
   "Fahmi (PT)","",""
-];
+]; // fallback list — overwritten by the "Staff List" tab in Google Sheet once loaded
 const ITEMS = [
   {k:'hairnet',l:'Hairnet'},{k:'uniform',l:'Uniform'},{k:'glove',l:'Glove'},
   {k:'mask',l:'Face Mask'},{k:'nails',l:'Fingernails'},{k:'apron',l:'Apron'},
@@ -417,6 +417,17 @@ async function apiListMonth(month){
     }catch(e){ console.error('[hygiene] GET month: fetch failed:', e); }
   }
   return Object.values(memStore).filter(e=> e.month===month);
+}
+async function apiGetStaffList(){
+  if(!apiUrl) return null;
+  try{
+    const res = await fetch(apiUrl + '?action=stafflist');
+    const text = await res.text();
+    let j; try{ j = JSON.parse(text); }catch(e){ console.error('[hygiene] GET stafflist: non-JSON response:', text); return null; }
+    if(j && j.ok && Array.isArray(j.staff)) return j.staff;
+    if(j && j.ok===false) console.error('[hygiene] GET stafflist: script error:', j.error);
+  }catch(e){ console.error('[hygiene] GET stafflist: fetch failed:', e); }
+  return null;
 }
 async function apiVerify(date, verifiedName, verifiedPos, verifiedSig){
   if(!apiUrl) return {ok:false, reason:'no-url'};
@@ -779,11 +790,15 @@ el('exitVerifyBtn').addEventListener('click', ()=>{
 
 // ---- Init ----
 el('reportMonth').value = state.month;
-if(isVerifyMode && verifyDateParam){
-  enterVerifyMode(verifyDateParam);
-} else {
-  goToDate(state.date);
-}
+(async function initApp(){
+  const remoteStaff = await apiGetStaffList();
+  if(remoteStaff && remoteStaff.length) STAFF = remoteStaff;
+  if(isVerifyMode && verifyDateParam){
+    enterVerifyMode(verifyDateParam);
+  } else {
+    goToDate(state.date);
+  }
+})();
 </script>
 
 </body>
