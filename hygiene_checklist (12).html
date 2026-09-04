@@ -294,8 +294,8 @@
     <div class="settings">
       <div class="signoff-title" style="margin-bottom:10px;">Google Sheet connection</div>
       <div class="settings-row">
-        <input type="text" id="sheetUrlInput" placeholder="Paste your Google Apps Script Web App URL here">
-        <button class="btn btn-primary" id="saveUrlBtn">Save URL</button>
+        <input type="text" id="sheetUrlInput" placeholder="Google Apps Script Web App URL (connected automatically)">
+        <button class="btn btn-primary" id="saveUrlBtn">Update URL</button>
       </div>
       <div class="hint">
         This is now the checklist's real storage — every "Save" writes straight to your Google Sheet, separated automatically into one tab per month (e.g. <code>August 2026</code>), laid out to match this form so you can print directly from Sheets too.<br><br>
@@ -333,9 +333,12 @@ function safeGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ retur
 function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 
 const params = new URLSearchParams(location.search);
-let apiUrl = params.get('api') || safeGet('hygiene_api_url') || '';
-if(params.get('api')) safeSet('hygiene_api_url', apiUrl);
-const isVerifyMode = params.get('mode')==='verify';
+  // Permanent Google Apps Script connection.
+  // The hosted page will automatically use this URL every time it opens.
+  const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyLzPcSgx8ux3p2jAdGif-QoyPM_hyxW2nj-lSrxv5BEZMyrqavXwPVoKsn4zcRm6OL/exe';
+  let apiUrl = DEFAULT_API_URL;
+  safeSet('hygiene_api_url', apiUrl);
+  const isVerifyMode = params.get('mode')==='verify';
 const verifyDateParam = params.get('date');
 
 function todayStr(){const d=new Date();return d.toISOString().slice(0,10);}
