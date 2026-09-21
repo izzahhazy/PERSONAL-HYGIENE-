@@ -144,44 +144,24 @@ body.verify-mode .verify-only{display:inline-block;}
 .modal-actions{display:flex;gap:8px;margin-top:12px;}
 .linkbox{display:none;margin-top:10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;word-break:break-all;}
 
-/* ---------------- PRINT ---------------- */
-#printRoot{display:none;}
+</style>
+<style id="printStyles" media="not all">
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Dancing+Script:wght@600;700&display=swap');
 @page{ size: A4 portrait; margin: 8mm; }
-
-@media print{
-  html, body{
-    margin:0 !important;
-    padding:0 !important;
-    background:#fff !important;
-    width:100% !important;
-  }
-
-  /* remove the app from the print layout entirely (not just hidden) */
-  #app, .modal-overlay{ display:none !important; }
-
-  #printRoot{
-    display:block !important;
-    position:static !important;
-    width:100% !important;
-    margin:0 auto !important;
-  }
-
-  .ppage{
-    width:100% !important;
-    margin:0 auto !important;
-    padding:0 !important;
-    box-sizing:border-box;
-    font-family:'Inter',sans-serif;
-    page-break-after:always;
-  }
-  .ppage:last-child{ page-break-after:auto; }
-
-  .ppage table{ margin:0 auto; }
-  .ppage th{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+*{box-sizing:border-box;}
+html,body{
+  margin:0;padding:0;background:#fff;color:#000;
+  font-family:'Inter',sans-serif;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
-
+.ppage{
+  width:100%;max-width:194mm;   /* A4 210mm minus 2 x 8mm margin */
+  margin:0 auto;padding:0;
+  page-break-after:always;break-after:page;
+}
+.ppage:last-child{page-break-after:auto;break-after:auto;}
 .ppage-head{display:grid;grid-template-columns:1fr 130px;border:1px solid #333;margin-bottom:8px;border-radius:3px;overflow:hidden;}
-.ppage-head .l{padding:7px 9px;display:flex;flex-direction:column;justify-content:center;gap:3px;border-right:1px solid #333;}
+.ppage-head .l{padding:7px 9px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:3px;border-right:1px solid #333;}
 .ppage-head .l b{font-size:12px;}
 .ppage-head .l span{font-size:11px;font-weight:600;color:#1B4A36;}
 .ppage-head .r{padding:6px 9px;display:flex;flex-direction:column;gap:2px;justify-content:center;}
@@ -340,7 +320,6 @@ body.verify-mode .verify-only{display:inline-block;}
 
 </div>
 
-<div id="printRoot"></div>
 
 <script>
 let STAFF = [
@@ -724,21 +703,44 @@ function buildPrintPage(entry, pageNum, totalPages, includeHeader){
   </div>`;
 }
 
-function doPrint(entries){
-  if(entries.length===0){ alert('No records to print.'); return; }
-  const includeHeader = el('printHeaderToggle').checked;
-  const root = el('printRoot');
-  root.innerHTML = entries.map((en,i)=> buildPrintPage(en, i+1, entries.length, includeHeader)).join('');
-  window.print();
+function printCssText(){
+  const s = document.getElementById('printStyles');
+  return s ? s.textContent : '';
 }
 
-el('printDayBtn').addEventListener('click', ()=> doPrint([state]));
+function openPrintWindow(){
+  const w = window.open('', '_blank');
+  if(!w) alert('Pop-up blocked. Please allow pop-ups for this site, then tap Print again.');
+  return w;
+}
+
+// Print from a clean, separate document so the app layout / phone viewport cannot shift the form.
+function writePrintWindow(w, entries){
+  const includeHeader = el('printHeaderToggle').checked;
+  const pages = entries.map((en,i)=> buildPrintPage(en, i+1, entries.length, includeHeader)).join('');
+  w.document.open();
+  w.document.write('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Personal Hygiene Checklist</title>'
+    + '<style>' + printCssText() + '</style></head><body>' + pages
+    + '<script>window.addEventListener("load",function(){'
+    + 'var go=function(){setTimeout(function(){window.focus();window.print();},300);};'
+    + 'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go);}else{go();}'
+    + '});<\/script></body></html>');
+  w.document.close();
+}
+
+el('printDayBtn').addEventListener('click', ()=>{
+  const w = openPrintWindow(); if(!w) return;
+  writePrintWindow(w, [state]);
+});
 el('printMonthBtn').addEventListener('click', async ()=>{
   const m = el('reportMonth').value;
   if(!m){ alert('Select a month first.'); return; }
+  const w = openPrintWindow(); if(!w) return;   // open first, inside the tap, so it is not blocked
   const entries = await apiListMonth(m);
   entries.sort((a,b)=> a.date.localeCompare(b.date));
-  doPrint(entries);
+  if(entries.length===0){ w.close(); alert('No records to print.'); return; }
+  writePrintWindow(w, entries);
 });
 
 // ---- Google Sheet connection ----
