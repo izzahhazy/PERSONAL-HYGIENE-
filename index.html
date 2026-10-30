@@ -375,7 +375,7 @@ function refreshApiBar(){
   const bar = el('apiBar');
   if(apiUrl){
     bar.classList.add('ok');
-    bar.innerHTML = 'Connected to Google Sheet (v3). Auto-sync is on: changes save automatically and update on every device.';
+    bar.innerHTML = 'Connected to Google Sheet (v4). Auto-sync is on: changes save automatically and update on every device.';
   } else {
     bar.classList.remove('ok');
     bar.innerHTML = 'Google Sheet not connected yet — data will only stay on this device/session. <a id="apiBarLink">Go to setup</a>';
@@ -428,15 +428,22 @@ async function apiListMonth(month){
   return Object.values(memStore).filter(e=> e.month===month);
 }
 
+let staffErr = '';
 async function apiGetStaffList(){
   if(!apiUrl) return null;
+  staffErr = '';
   try{
     const res = await fetch(apiUrl + '?action=stafflist&_t=' + Date.now(), {cache:'no-store'});
     const text = await res.text();
-    let j; try{ j = JSON.parse(text); }catch(e){ console.error('[hygiene] GET stafflist: non-JSON response:', text); return null; }
+    let j; try{ j = JSON.parse(text); }catch(e){
+      console.error('[hygiene] GET stafflist: non-JSON response:', text);
+      staffErr = 'HTTP ' + res.status + ', not JSON: ' + text.replace(/\s+/g,' ').slice(0,90);
+      return null;
+    }
     if(j && j.ok && Array.isArray(j.staff)) return j.staff;
-    if(j && j.ok===false) console.error('[hygiene] GET stafflist: script error:', j.error);
-  }catch(e){ console.error('[hygiene] GET stafflist: fetch failed:', e); }
+    if(j && j.ok===false){ console.error('[hygiene] GET stafflist: script error:', j.error); staffErr = 'script error: ' + j.error; }
+    else staffErr = 'unexpected reply: ' + text.slice(0,90);
+  }catch(e){ console.error('[hygiene] GET stafflist: fetch failed:', e); staffErr = 'fetch failed: ' + (e && e.message ? e.message : e); }
   return null;
 }
 
@@ -865,7 +872,7 @@ el('exitVerifyBtn').addEventListener('click', ()=>{
 const diag = {staff:'loading…', staffN:0, record:'-', recordDate:'-'};
 function updateDiag(){
   const d = el('diagLine'); if(!d) return;
-  d.textContent = 'v3 · staff list: ' + diag.staff + (diag.staffN ? ' (' + diag.staffN + ' slots)' : '')
+  d.textContent = 'v4 · staff list: ' + diag.staff + (diag.staffN ? ' (' + diag.staffN + ' slots)' : '')
     + ' · record ' + diag.recordDate + ': ' + diag.record;
 }
 
@@ -898,7 +905,7 @@ el('reportMonth').value = state.month;
     safeSet('hygiene_staff_cache', JSON.stringify(remoteStaff));
     diag.staff = 'from Google Sheet OK'; diag.staffN = remoteStaff.length;
   } else if(apiUrl){
-    diag.staff = 'FAILED to load from Sheet → using saved/fallback list';
+    diag.staff = 'FAILED (' + staffErr + ') → using saved/fallback list';
     // Could not reach the Staff List tab: use last known list from this device, and warn
     try{ const c = JSON.parse(safeGet('hygiene_staff_cache') || 'null'); if(Array.isArray(c) && c.length) STAFF = c; }catch(e){}
     const bar = el('apiBar');
