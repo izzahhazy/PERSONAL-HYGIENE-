@@ -340,7 +340,8 @@ function safeGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ retur
 function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 
 const params = new URLSearchParams(location.search);
-let apiUrl = params.get('api') || safeGet('hygiene_api_url') || '';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyLzPcSgx8ux3p2jAdGif-QoyPM_hyxW2nj-lSrxv5BEZMyrqavXwPVoKsn4zcRm6OL/exec';
+let apiUrl = params.get('api') || safeGet('hygiene_api_url') || DEFAULT_API_URL;
 if(params.get('api')) safeSet('hygiene_api_url', apiUrl);
 const isVerifyMode = params.get('mode')==='verify';
 const verifyDateParam = params.get('date');
@@ -366,13 +367,14 @@ function setStatus(text, kind){
   const p = el('statusPill');
   p.textContent = text;
   p.className = 'status-pill' + (kind==='unsaved' ? ' unsaved' : '');
+  if(text==='Unsaved') scheduleAutoSave();
 }
 
 function refreshApiBar(){
   const bar = el('apiBar');
   if(apiUrl){
     bar.classList.add('ok');
-    bar.innerHTML = 'Connected to Google Sheet. Records are saved online and shared with anyone using this same connection.';
+    bar.innerHTML = 'Connected to Google Sheet. Auto-sync is on: changes save automatically and update on every device.';
   } else {
     bar.classList.remove('ok');
     bar.innerHTML = 'Google Sheet not connected yet — data will only stay on this device/session. <a id="apiBarLink">Go to setup</a>';
@@ -385,7 +387,7 @@ function refreshApiBar(){
 async function apiGetEntry(date){
   if(apiUrl){
     try{
-      const res = await fetch(apiUrl + '?action=get&date=' + encodeURIComponent(date));
+      const res = await fetch(apiUrl + '?action=get&date=' + encodeURIComponent(date) + '&_t=' + Date.now(), {cache:'no-store'});
       const text = await res.text();
       let j; try{ j = JSON.parse(text); }catch(e){ console.error('[hygiene] GET get: non-JSON response:', text); j = null; }
       if(j && j.ok && j.entry) return j.entry;
@@ -415,7 +417,7 @@ async function apiSaveEntry(entry){
 async function apiListMonth(month){
   if(apiUrl){
     try{
-      const res = await fetch(apiUrl + '?action=month&month=' + encodeURIComponent(month));
+      const res = await fetch(apiUrl + '?action=month&month=' + encodeURIComponent(month) + '&_t=' + Date.now(), {cache:'no-store'});
       const text = await res.text();
       let j; try{ j = JSON.parse(text); }catch(e){ console.error('[hygiene] GET month: non-JSON response:', text); j = null; }
       if(j && j.ok) return j.entries || [];
@@ -428,7 +430,7 @@ async function apiListMonth(month){
 async function apiGetStaffList(){
   if(!apiUrl) return null;
   try{
-    const res = await fetch(apiUrl + '?action=stafflist');
+    const res = await fetch(apiUrl + '?action=stafflist&_t=' + Date.now(), {cache:'no-store'});
     const text = await res.text();
     let j; try{ j = JSON.parse(text); }catch(e){ console.error('[hygiene] GET stafflist: non-JSON response:', text); return null; }
     if(j && j.ok && Array.isArray(j.staff)) return j.staff;
@@ -509,17 +511,29 @@ function loadEntry(){
   renderStaffList();
 }
 
+function getPending(){ try{ return JSON.parse(safeGet('hygiene_pending') || '{}'); }catch(e){ return {}; } }
+function setPending(p){ safeSet('hygiene_pending', JSON.stringify(p)); }
+async function flushPending(){
+  if(!apiUrl) return;
+  const p = getPending();
+  for(const d of Object.keys(p)){
+    const r = await apiSaveEntry(p[d]);
+    if(r.ok){ const q = getPending(); delete q[d]; setPending(q); } else break;
+  }
+}
+
 async function goToDate(date){
-  const existing = await apiGetEntry(date);
+  const pend = getPending()[date];
+  const existing = pend || await apiGetEntry(date);
   if(existing){
     state = existing;
-    setStatus('Existing record loaded');
+    setStatus(pend ? 'Waiting to sync' : 'Existing record loaded', pend ? 'unsaved' : undefined);
   } else {
     state = {month: monthOf(date), date, week: state.week, rows: blankRows(),
       checkedName:'', checkedPos:'', verifiedName:'', verifiedPos:'', checkedSig:'', verifiedSig:''};
     setStatus('New record');
   }
-  dirty = false;
+  dirty = !!pend;
   loadEntry();
 }
 
@@ -594,14 +608,35 @@ el('clearBtn').addEventListener('click', ()=>{
   renderStaffList();
 });
 
-// ---- Save ----
+// ---- Save (manual button + auto-save) ----
+let saving = false, autoTimer = null;
+function norm(o){
+  return JSON.stringify(o, (k,v)=> (v && typeof v==='object' && !Array.isArray(v))
+    ? Object.keys(v).sort().reduce((a,x)=>(a[x]=v[x],a),{}) : v);
+}
+function scheduleAutoSave(){
+  if(!apiUrl || isVerifyMode || document.body.classList.contains('verify-mode')) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(saveCurrent, 2000);
+}
 async function saveCurrent(){
+  clearTimeout(autoTimer);
+  if(saving){ autoTimer = setTimeout(saveCurrent, 1500); return; }
+  saving = true;
   setStatus('Saving...','unsaved');
-  const res = await apiSaveEntry(state);
-  if(res.ok){ dirty=false; setStatus('Saved online ✓'); }
+  const snapshot = JSON.parse(JSON.stringify(state));
+  const res = await apiSaveEntry(snapshot);
+  saving = false;
+  const changedMeanwhile = norm(snapshot) !== norm(state);
+  if(res.ok){
+    const q = getPending(); if(q[snapshot.date]){ delete q[snapshot.date]; setPending(q); }
+    if(changedMeanwhile){ dirty = true; setStatus('Unsaved','unsaved'); }
+    else { dirty = false; setStatus('Saved online ✓'); }
+  }
   else if(res.reason==='no-url') setStatus('Saved on this device only','unsaved');
   else{
-    setStatus('Save failed — see Console (F12)','unsaved');
+    const q = getPending(); q[snapshot.date] = snapshot; setPending(q);
+    setStatus('Offline — will sync automatically','unsaved');
     console.error('[hygiene] Save failed, reason:', res.reason, res.raw||'');
   }
 }
@@ -614,6 +649,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     tab.classList.add('active');
     el('panel-'+tab.dataset.panel).classList.add('active');
+    if(tab.dataset.panel==='report' && el('reportMonth').value) loadMonthEntries();
   });
 });
 
@@ -821,9 +857,29 @@ el('exitVerifyBtn').addEventListener('click', ()=>{
   el('verifyBanner').style.display = 'none';
 });
 
+// ---- Auto refresh (pull latest from Google Sheet) ----
+async function refreshCurrent(){
+  if(!apiUrl || isVerifyMode || dirty || saving || document.hidden) return;
+  if(document.body.classList.contains('verify-mode')) return;
+  if(!el('panel-fill').classList.contains('active')) return;
+  const ae = document.activeElement;
+  if(ae && ae.tagName==='INPUT' && ae.closest('#staffList')) return;
+  await flushPending();
+  const date = state.date;
+  const remote = await apiGetEntry(date);
+  if(dirty || saving || state.date!==date) return;
+  if(remote && norm(remote)!==norm(state)){ state = remote; loadEntry(); }
+  setStatus('Synced ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+}
+setInterval(refreshCurrent, 20000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshCurrent(); });
+window.addEventListener('focus', refreshCurrent);
+window.addEventListener('online', ()=>{ flushPending().then(refreshCurrent); });
+
 // ---- Init ----
 el('reportMonth').value = state.month;
 (async function initApp(){
+  await flushPending();
   const remoteStaff = await apiGetStaffList();
   if(remoteStaff && remoteStaff.length) STAFF = remoteStaff;
   if(isVerifyMode && verifyDateParam){
