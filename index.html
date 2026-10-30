@@ -194,6 +194,7 @@ html,body{
     Google Sheet not connected yet — data will only stay on this device/session.
     <a id="apiBarLink">Go to setup</a>
   </div>
+  <div id="diagLine" style="font-size:11px;color:#667;padding:2px 4px 6px;font-family:monospace;"></div>
 
   <div class="masthead">
     <div class="masthead-main">
@@ -374,7 +375,7 @@ function refreshApiBar(){
   const bar = el('apiBar');
   if(apiUrl){
     bar.classList.add('ok');
-    bar.innerHTML = 'Connected to Google Sheet. Auto-sync is on: changes save automatically and update on every device.';
+    bar.innerHTML = 'Connected to Google Sheet (v3). Auto-sync is on: changes save automatically and update on every device.';
   } else {
     bar.classList.remove('ok');
     bar.innerHTML = 'Google Sheet not connected yet — data will only stay on this device/session. <a id="apiBarLink">Go to setup</a>';
@@ -525,6 +526,9 @@ async function flushPending(){
 async function goToDate(date){
   const pend = getPending()[date];
   const existing = pend || await apiGetEntry(date);
+  diag.recordDate = date;
+  diag.record = pend ? 'waiting-to-sync (local)' : (existing ? 'saved record from Sheet (uses names stored in it)' : 'NEW (uses staff list)');
+  updateDiag();
   if(existing){
     state = existing;
     setStatus(pend ? 'Waiting to sync' : 'Existing record loaded', pend ? 'unsaved' : undefined);
@@ -857,6 +861,14 @@ el('exitVerifyBtn').addEventListener('click', ()=>{
   el('verifyBanner').style.display = 'none';
 });
 
+// ---- Diagnostic line (shows where the data on screen came from) ----
+const diag = {staff:'loading…', staffN:0, record:'-', recordDate:'-'};
+function updateDiag(){
+  const d = el('diagLine'); if(!d) return;
+  d.textContent = 'v3 · staff list: ' + diag.staff + (diag.staffN ? ' (' + diag.staffN + ' slots)' : '')
+    + ' · record ' + diag.recordDate + ': ' + diag.record;
+}
+
 // ---- Auto refresh (pull latest from Google Sheet) ----
 async function refreshCurrent(){
   if(!apiUrl || isVerifyMode || dirty || saving || document.hidden) return;
@@ -881,7 +893,20 @@ el('reportMonth').value = state.month;
 (async function initApp(){
   await flushPending();
   const remoteStaff = await apiGetStaffList();
-  if(remoteStaff && remoteStaff.length) STAFF = remoteStaff;
+  if(remoteStaff && remoteStaff.length){
+    STAFF = remoteStaff;
+    safeSet('hygiene_staff_cache', JSON.stringify(remoteStaff));
+    diag.staff = 'from Google Sheet OK'; diag.staffN = remoteStaff.length;
+  } else if(apiUrl){
+    diag.staff = 'FAILED to load from Sheet → using saved/fallback list';
+    // Could not reach the Staff List tab: use last known list from this device, and warn
+    try{ const c = JSON.parse(safeGet('hygiene_staff_cache') || 'null'); if(Array.isArray(c) && c.length) STAFF = c; }catch(e){}
+    const bar = el('apiBar');
+    bar.classList.remove('ok');
+    bar.innerHTML = '⚠ Could not load the Staff List from Google Sheet — showing the last saved list. Check your internet and refresh.';
+    diag.staffN = STAFF.length;
+  } else { diag.staff = 'no Sheet URL → built-in list'; diag.staffN = STAFF.length; }
+  updateDiag();
   if(isVerifyMode && verifyDateParam){
     enterVerifyMode(verifyDateParam);
   } else {
